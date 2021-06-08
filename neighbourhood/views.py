@@ -12,6 +12,9 @@ from django.core.checks import messages
 from django.http import response
 from django.http import Http404
 from django.contrib.auth.hashers import make_password
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework.authentication import TokenAuthentication
+from rest_framework.permissions import IsAuthenticated
 
 
 # Create your views here.
@@ -64,6 +67,20 @@ class NeighbourhoodList(APIView):
     neighborhood = self.get_neighborhood(pk)
     neighborhood.delete()
     return Response(status=status.HTTP_204_NO_CONTENT)
+
+class singleHood(APIView):
+  serializer_class = NeighbourhoodSerializer
+
+  def get_neighborhood(self, pk):
+    try:
+        return Neighbourhood.objects.get(pk=pk)
+    except Neighbourhood.DoesNotExist:
+        return Http404()
+
+  def get(self, request, pk, format=None):
+    post = self.get_neighborhood(pk)
+    serializers = self.serializer_class(post)
+    return Response(serializers.data)
 
 class UserList(APIView):
   serializer_class=UserSerializer
@@ -158,6 +175,11 @@ class BusinessList(APIView):
     except Business.DoesNotExist:
         return Http404()
 
+  def single_business(self, request, pk, format=None):
+    post = self.get_business(pk)
+    serializers = self.serializer_class(post)
+    return Response(serializers.data)     
+
   def get(self, request,format=None):
     business=Business.objects.all()
     serializers=self.serializer_class(business, many=True)
@@ -180,6 +202,23 @@ class BusinessList(APIView):
     else:
       return Response(serializers.errors, status=status.HTTP_400_BAD_REQUEST)
 
+  @csrf_exempt
+  def post(self, request, format=None):
+    print(request.data)
+    serializers=self.serializer_class(data=request.data)
+    print(serializers)
+    if serializers.is_valid():
+      serializers.save()
+      business=serializers.data
+      response = {
+          'data': {
+              'business': dict(business),
+              'status': 'success',
+              'message': 'business created successfully',
+          }
+      }
+      return Response(response, status=status.HTTP_200_OK)
+    return Response(serializers.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class PostList(APIView):
   serializer_class=PostSerializer
@@ -232,8 +271,22 @@ class PostList(APIView):
     post.delete()
     return Response(status=status.HTTP_204_NO_CONTENT)
 
-class BusinessSearch(generics.ListAPIView):
-  queryset=Business.objects.all()
-  serializer_class=BusinessSerializers
-  filter_backends=(filters.SearchFilter)
-  search_fields=('business_name')
+
+class BusinessSearchList(APIView):
+    def get(self, request, name):
+        business = Business.find_business(name)
+        serializers = BusinessSerializers(business, many=True)
+        return Response(serializers.data)
+
+class singlePost(APIView):
+  serializer_class = PostSerializer
+  def get_post(self, pk):
+      try:
+          return Post.objects.get(pk=pk)
+      except Post.DoesNotExist:
+          raise Http404()
+
+  def get(self, request, pk, format=None):
+    post = self.get_post(pk)
+    serializers = self.serializer_class(post)
+    return Response(serializers.data)        
